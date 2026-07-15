@@ -38,6 +38,7 @@ class App {
             require_once __DIR__ . '/../app/models/Category.php';
             require_once __DIR__ . '/../app/models/Supplier.php';
             require_once __DIR__ . '/../app/models/Product.php';
+            require_once __DIR__ . '/../app/models/StockMovement.php';
             require_once $filePath;
             $this->controller = new $this->controller();
         } else {
