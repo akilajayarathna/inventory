@@ -7,8 +7,28 @@ A full-stack inventory management system built with vanilla PHP (MVC architectur
 - Product management with category and supplier relationships
 - Stock tracking via a movement-based ledger (audit-trail friendly)
 - Low stock alerts on the dashboard
+- Purchase Order workflow with multi-line items — receiving an order automatically creates stock movements
 - Soft deletes for suppliers and products
+- REST API layer with token-based authentication (for a future POS frontend)
 - Clean MVC architecture built from scratch (no framework)
+
+## REST API
+A token-based REST API layer sits alongside the main MVC application, reusing the same Model classes.
+
+**Authentication**
+POST /api/login
+Body: { "email": "...", "password": "..." }
+Response: { "token": "...", "user": {...} }
+
+**Endpoints**
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| POST | /api/login | No | Get an auth token |
+| GET | /api/products | No | List all products |
+| GET | /api/products/{id} | No | Get a single product |
+| POST | /api/products | Yes (Bearer token) | Create a product |
+
+Protected endpoints require an `Authorization: Bearer <token>` header.
 
 ## Tech Stack
 - PHP (vanilla, custom MVC)
@@ -32,4 +52,3 @@ A full-stack inventory management system built with vanilla PHP (MVC architectur
 ## Planned Enhancements
 - Purchase Order module
 - Point of Sale (POS) frontend
-- REST API layer for POS integration
