@@ -3,10 +3,19 @@
 class ApiController extends Controller {
 
     private $productModel;
+    private $categoryModel;
+    private $saleModel;
+    private $stockModel;
 
     public function __construct() {
         $this->productModel = new Product();
+        $this->categoryModel = new Category();
+        $this->saleModel     = new Sale();
+        $this->stockModel    = new StockMovement();
+
     }
+
+    // ----------------------------------------
 
     public function products($id = null) {
         
@@ -34,6 +43,98 @@ class ApiController extends Controller {
     }
 
     // ----------------------------------------
+
+    public function categories() {
+    if($_SERVER['REQUEST_METHOD'] !== 'GET') {
+        $this->json(['error' => 'Method not allowed'], 405);
+        return;
+    }
+
+    $categories = $this->categoryModel->getAll();
+    $this->json($categories);
+}
+
+    // ----------------------------------------
+
+    public function createSale() {
+    if($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        $this->json(['error' => 'Method not allowed'], 405);
+        return;
+    }
+
+    if(!$this->authenticate()) {
+        return;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    $items = $input['items'] ?? [];
+    $paymentMethod = $input['payment_method'] ?? 'cash';
+
+    if(empty($items)) {
+        $this->json(['error' => 'At least one item is required'], 400);
+        return;
+    }
+
+    // Validate each item and check stock availability
+    foreach($items as $item) {
+        if(empty($item['product_id']) || empty($item['quantity']) || $item['quantity'] <= 0) {
+            $this->json(['error' => 'Each item requires a valid product_id and quantity'], 400);
+            return;
+        }
+
+        $currentStock = $this->stockModel->getCurrentStock($item['product_id']);
+        if($item['quantity'] > $currentStock) {
+            $this->json(['error' => "Insufficient stock for product ID {$item['product_id']}. Available: {$currentStock}"], 400);
+            return;
+        }
+    }
+
+    // Calculate total
+    $total = 0;
+    foreach($items as $item) {
+        $product = $this->productModel->findById($item['product_id']);
+        $total += $product->unit_price * $item['quantity'];
+    }
+
+    // Create the sale (parent record)
+    $saleId = $this->saleModel->create($this->authUser->id, $total, $paymentMethod);
+
+    // Create sale items and reduce stock for each
+    foreach($items as $item) {
+        $product = $this->productModel->findById($item['product_id']);
+
+        $this->saleModel->addItem($saleId, $item['product_id'], $item['quantity'], $product->unit_price);
+
+        $this->stockModel->create([
+            'product_id'   => $item['product_id'],
+            'user_id'      => $this->authUser->id,
+            'type'         => 'sale',
+            'quantity'     => -abs($item['quantity']),
+            'reference_id' => $saleId,
+            'note'         => 'Sold via POS - Sale #' . $saleId
+        ]);
+    }
+
+    $this->json([
+        'message'     => 'Sale completed successfully',
+        'sale_id'     => $saleId,
+        'total_amount' => $total
+    ], 201);
+}
+
+    // ---------------------------------------------------
+
+    public function sales() {
+    if($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $this->createSale();
+        return;
+    }
+
+    $this->json(['error' => 'Method not allowed'], 405);
+}
+
+    // -------------------------------------------------------
 
     public function login() {
         if($_SERVER['REQUEST_METHOD'] !== 'POST') {
